@@ -224,9 +224,28 @@ let rx = width / nx;
 let ry = height / ny;
 
 class Particle {
-	constructor(material, density) {
+	constructor(material) {
 		this.material = material;
-		this.density = density;
+		switch(material) {
+			case "air":
+				this.density = 0;
+				break;
+			case "water":
+				this.density = 1;
+				break;
+			case "sedimentary":
+				this.density = 2;
+				break;
+			case "magmatic":
+				this.density = 2.7;
+				break;
+			case "metamorphic":
+				this.density = 2.7;
+				break;
+			case "magma":
+				this.density = 3.3;
+				break;
+		}
 	}
 	get color() {
 		switch(this.material) {
@@ -271,8 +290,7 @@ function init() {
 	for(let i = 0; i < nx; i ++) {
 		for(let j = 0; j < ny; j ++) {
 			grd[i][j] = new Particle( 
-				j < ny / 2 ? "magma" : "air",
-				j < ny / 2 ? 1 : 0 
+				j < ny / 2 ? "magma" : "air"
 			);
 		}
 	}
@@ -280,11 +298,29 @@ function init() {
 }
 
 function loop() {
-  if(startBtn.checked) {
-	drawCanvas();
-  }
+	if(startBtn.checked) {
 
-  requestAnimationFrame(loop);
+		//Update cycle
+
+		//Check hanging particles
+		for(let i = 0; i < nx; i ++) {
+			for(let j = 1; j < ny; j ++) {
+				if(
+					grd[i][j].material != "air" 
+					&& grd[i][j].material != "water"
+					&& ( grd[i][j-1].material == "air" || grd[i][j-1].material == "water" )
+				) {
+					let mat = grd[i][j-1].material;
+					grd[i][j-1] = grd[i][j];
+					grd[i][j] = new Particle(mat);
+				}
+			}
+		}
+
+		drawCanvas();
+	}
+
+	requestAnimationFrame(loop);
 }
 
 // Resizer
@@ -301,28 +337,7 @@ window.addEventListener('resize', resizer);
 let dragging = false;
 
 function paintParticle(x, y) {
-	let ptc = grd[Math.floor(x / rx)][Math.floor(( height - y ) / ry )];
-	ptc.material = brush.value
-	switch(brush.value) {
-			case "air":
-				ptc.density = 0;
-				break;
-			case "water":
-				ptc.density = 1;
-				break;
-			case "sedimentary":
-				ptc.density = 2;
-				break;
-			case "magmatic":
-				ptc.density = 2.7;
-				break;
-			case "metamorphic":
-				ptc.density = 2.7;
-				break;
-			case "magma":
-				ptc.density = 3.3;
-				break;
-		}
+	grd[Math.floor(x / rx)][Math.floor(( height - y ) / ry )] = new Particle(brush.value);
 	drawCanvas();
 }
 
