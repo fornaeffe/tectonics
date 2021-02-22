@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html>
+  	<head>
+		<link rel="icon" href="favicon.ico">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<title>Tectonics simulator</title>
+		<style>
+			body {
+				margin: 0;
+				font-family: Arial, Helvetica, sans-serif;
+				color:rgb(255, 255, 255);
+				overflow: hidden;
+				background: #222;
+			}
+			#container {
+				position: relative;
+			}			
+			#help {
+				position: absolute;
+				bottom: 0;
+				left: 0;
+				margin: 5px;
+			}
+
+
+			/* unvisited link */
+			a:link {
+				color: #bada55;
+				text-decoration: none;
+			}
+			/* visited link */
+			a:visited {
+				color: #bada55;
+				text-decoration: none;
+			}
+			/* mouse over link */
+			a:hover {
+				color: #bada55;
+				text-decoration: underline;
+			}
+			/* selected link */
+			a:active {
+				color: #bada55;
+				text-decoration: underline;
+			}
+
+
+			/* Dropdown controls */
+
+			/* Remove default bullets */
+			ul, #myUL {
+				list-style-type: none;
+				padding-left: 10px;
+			}
+			
+			/* Remove margins and padding from the parent ul,
+			and set it floating top left over canvas */
+			#myUL {
+				margin: 5px;
+				padding: 10px;
+				position: absolute;
+				top: 0;
+				left: 0;
+				background-color: rgba(0,0,0,0.5);
+				border-radius: 10px;
+			}
+
+			/* Style the caret/arrow */
+			.caret {
+				cursor: pointer;
+				user-select: none; /* Prevent text selection */
+			}
+
+			/* Create the caret/arrow with a unicode, and style it */
+			.caret::before {
+				content: "\25B6";
+				color: rgb(255, 255, 255);
+				display: inline-block;
+				margin-right: 6px;
+			}
+
+			/* Rotate the caret/arrow icon when clicked on (using JavaScript) */
+			.caret-down::before {
+				transform: rotate(90deg);
+			}
+
+			/* Hide the nested list */
+			.nested {
+				display: none;
+			}
+
+			/* Show the nested list when the user clicks on the caret/arrow (with JavaScript) */
+			.active {
+				display: block;
+			}
+			
+
+			/* Checkboxes */
+			/* from https://codepen.io/JAGATHISH1123/embed/PvayMB?default-tab=&theme-id= */
+			.switch {
+			position: relative;
+			display: inline-block;
+			width: 32px;
+			height: 16px;
+			background-color: rgba(255, 255, 255, 0.25);
+			border-radius: 16px;
+			transition: all 0.3s;
+			}
+			.switch::after {
+			content: '';
+			position: absolute;
+			width: 12px;
+			height: 12px;
+			border-radius:50%;
+			background-color: white;
+			top: 2px;
+			left: 2px;
+			transition: all 0.3s;
+			}
+
+			.checkbox:checked + .switch::after {
+			left : 16px;
+			}
+			.checkbox:checked + .switch {
+			background-color: #bada55;
+			}
+			.checkbox {
+			display : none;
+			}
+
+
+
+			/* SLIDERS */
+			/* The slider itself */
+			.slider {
+			-webkit-appearance: none;  /* Override default CSS styles */
+			appearance: none;
+			width: 100px;
+			height: 16px;
+			border-radius: 8px;
+			background: rgba(255, 255, 255, 0.25);
+			}
+
+			/* The slider handle (use -webkit- (Chrome, Opera, Safari, Edge) and -moz- (Firefox) to override default look) */
+			.slider::-webkit-slider-thumb {
+			-webkit-appearance: none; /* Override default look */
+			appearance: none;
+			width: 12px;
+			height: 12px;
+			border-radius: 6px;
+			background: #bada55;
+			cursor: pointer;
+			}
+			.slider::-moz-range-thumb {
+			width: 12px;
+			height: 12px;
+			border-radius: 6px;
+			background: #bada55;
+			cursor: pointer;
+			}
+			output {
+			color: #bada55;
+			}
+		</style>
+  	</head>
+  	<body>
+		<div id="container">
+			<canvas id="myCanvas">
+				<p>This browser doesn't support canvas.</p>
+			</canvas>
+			<ul id="myUL">
+				<li><span class="caret">Controlli</span>
+				  	<ul class="nested">
+						<li>
+							<input type="checkbox" id="start" class="checkbox" />  
+							<label for="start" class="switch"></label>
+							Avvia
+						</li>
+				  	</ul>
+				</li>
+			</ul>
+			<div id="help">
+				<a href="help.html" target="_blank">Help & Credits</a>
+			</div>
+		</div>
+	</body>
+	<script>
+		// Dropdown controls
+		const toggler = document.getElementsByClassName("caret");
+
+		for (let i = 0; i < toggler.length; i++) {
+			toggler[i].addEventListener("click", function() {
+				this.parentElement.querySelector(".nested").classList.toggle("active");
+				this.classList.toggle("caret-down");
+			});
+		}
+	</script>
+    <script>
+// Parameters
+const nx = 30;
+const ny = 30;
+const d = 1;
+const size = 10;
+const buffer = 50;
+
+// Links to page elements
+const canvas = document.getElementById("myCanvas");
+const startBtn = document.getElementById("start");
+
+// Set up canvas and context
+let width = canvas.width = window.innerWidth;
+let height = canvas.height = window.innerHeight;
+const ctx = canvas.getContext('2d');
+
+class Particle {
+	constructor(x, y) {
+		this.x = x;
+		this.y = y;
+	}
+	potential(x, y) {
+		let U = 0;
+
+		if(x < d) U += 10 - x;
+		if(x + d > nx) U += x + 10 - nx;
+		if(y < d) U += 10 - y;
+
+		U += 5 * y;
+
+		for(let i = 0; i < particles.length; i ++) {
+			if(!(particles[i] === this)) {
+				const dx = x - particles[i].x;
+				const dy = y - particles[i].y;
+				const d = Math.sqrt( dx * dx + dy * dy );
+				if( d == 0) {U += 10000000000000;} else {U += 1 / d;}
+			}
+		}
+		return(U);
+	}
+	update() {
+		let U = new Array(3);
+
+		for(let i = 0; i < 3; i ++) {
+			U[i] = this.potential(this.x - 1 + i, this.y);
+		}
+		this.x += U.indexOf(Math.min(...U)) - 1;
+
+		for(let i = 0; i < 3; i ++) {
+			U[i] = this.potential(this.x, this.y - 1 + i);
+		}
+		this.y += U.indexOf(Math.min(...U)) - 1;
+	}
+	draw() {
+		ctx.fillStyle = "gray";
+		ctx.fillRect( this.x / nx * ( width - 2 * buffer ) + buffer - size / 2, ( 1 - this.y / ny ) * ( height - 2 * buffer ) + buffer - size / 2, size, size )
+	}
+}
+
+drawCanvas = function() {
+	ctx.fillStyle = "black";
+	ctx.fillRect( 0, 0, width, height );
+	
+	for(let i = 0; i < particles.length; i ++) {
+		particles[i].draw();
+	}
+}
+
+let particles = [];
+
+function init() {
+	for(let i = 0; i < Math.floor( nx / d ); i ++) {
+		for(let j = 0; j < Math.floor( ny / d / 2 ); j ++) {
+			let particle = new Particle( Math.floor( ( i + 0.5 ) * d ), Math.floor( ( j + 0.5 ) * d ) );
+			particles.push(particle);
+		}
+	}
+	drawCanvas();
+}
+
+function loop() {
+  if(startBtn.checked) {
+	for(let i = 0; i < particles.length; i ++) {
+		particles[i].update();
+	}	  
+	drawCanvas();
+  }
+
+  requestAnimationFrame(loop);
+}
+
+init();
+
+loop();
+
+    </script>
+</html>
