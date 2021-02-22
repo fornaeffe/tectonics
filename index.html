@@ -176,6 +176,16 @@
 							<label for="start" class="switch"></label>
 							Avvia
 						</li>
+						<li>
+							<input type="checkbox" id="paint" class="checkbox" />  
+							<label for="paint" class="switch"></label>
+							Disegna
+							<select id="brush">
+								<option value="air">Aria</option>
+								<option value="magma">Magma</option>							
+							</select>
+						</li>
+						
 				  	</ul>
 				</li>
 			</ul>
@@ -199,78 +209,71 @@
 // Parameters
 const nx = 30;
 const ny = 30;
-const d = 1;
-const size = 10;
-const buffer = 50;
 
 // Links to page elements
 const canvas = document.getElementById("myCanvas");
 const startBtn = document.getElementById("start");
+const paintBtn = document.getElementById("paint");
+const brush = document.getElementById("brush");
 
 // Set up canvas and context
 let width = canvas.width = window.innerWidth;
 let height = canvas.height = window.innerHeight;
 const ctx = canvas.getContext('2d');
+let rx = width / nx;
+let ry = height / ny;
 
 class Particle {
-	constructor(x, y) {
-		this.x = x;
-		this.y = y;
+	constructor(material, density) {
+		this.material = material;
+		this.density = density;
 	}
-	potential(x, y) {
-		let U = 0;
-
-		if(x < d) U += 10 - x;
-		if(x + d > nx) U += x + 10 - nx;
-		if(y < d) U += 10 - y;
-
-		U += 5 * y;
-
-		for(let i = 0; i < particles.length; i ++) {
-			if(!(particles[i] === this)) {
-				const dx = x - particles[i].x;
-				const dy = y - particles[i].y;
-				const d = Math.sqrt( dx * dx + dy * dy );
-				if( d == 0) {U += 10000000000000;} else {U += 1 / d;}
-			}
+	get color() {
+		switch(this.material) {
+			case "air":
+				return("rgb(200, 200, 255)");
+				break;
+			case "water":
+				return("rgb(0, 0, 255)");
+				break;
+			case "sedimentary":
+				return("rgb(255, 200, 0)");
+				break;
+			case "magmatic":
+				return("rgb(200, 100, 0)");
+				break;
+			case "metamorphic":
+				return("rgb(200, 0, 100)");
+				break;
+			case "magma":
+				return("rgb(200, 0, 0)");
+				break;
 		}
-		return(U);
-	}
-	update() {
-		let U = new Array(3);
-
-		for(let i = 0; i < 3; i ++) {
-			U[i] = this.potential(this.x - 1 + i, this.y);
-		}
-		this.x += U.indexOf(Math.min(...U)) - 1;
-
-		for(let i = 0; i < 3; i ++) {
-			U[i] = this.potential(this.x, this.y - 1 + i);
-		}
-		this.y += U.indexOf(Math.min(...U)) - 1;
-	}
-	draw() {
-		ctx.fillStyle = "gray";
-		ctx.fillRect( this.x / nx * ( width - 2 * buffer ) + buffer - size / 2, ( 1 - this.y / ny ) * ( height - 2 * buffer ) + buffer - size / 2, size, size )
 	}
 }
+
+let grd = new Array(nx);
+for(let i = 0; i < nx; i ++) grd[i] = new Array(ny);
 
 drawCanvas = function() {
 	ctx.fillStyle = "black";
 	ctx.fillRect( 0, 0, width, height );
 	
-	for(let i = 0; i < particles.length; i ++) {
-		particles[i].draw();
+	for(let i = 0; i < nx; i ++) {
+		for(let j = 0; j < ny; j ++) {
+			ctx.fillStyle = grd[i][j].color;
+			ctx.fillRect(i * rx, height - ( j + 1 ) * ry, rx, ry);
+		}
 	}
 }
 
-let particles = [];
-
 function init() {
-	for(let i = 0; i < Math.floor( nx / d ); i ++) {
-		for(let j = 0; j < Math.floor( ny / d / 2 ); j ++) {
-			let particle = new Particle( Math.floor( ( i + 0.5 ) * d ), Math.floor( ( j + 0.5 ) * d ) );
-			particles.push(particle);
+	for(let i = 0; i < nx; i ++) {
+		for(let j = 0; j < ny; j ++) {
+			grd[i][j] = new Particle( 
+				j < ny / 2 ? "magma" : "air",
+				j < ny / 2 ? 1 : 0 
+			);
 		}
 	}
 	drawCanvas();
@@ -278,14 +281,65 @@ function init() {
 
 function loop() {
   if(startBtn.checked) {
-	for(let i = 0; i < particles.length; i ++) {
-		particles[i].update();
-	}	  
 	drawCanvas();
   }
 
   requestAnimationFrame(loop);
 }
+
+// Resizer
+function resizer() {	
+	width = canvas.width = window.innerWidth;
+	height = canvas.height = window.innerHeight;
+	rx = width / nx;
+	ry = height / ny;
+	drawCanvas();
+}
+window.addEventListener('resize', resizer);
+
+// Painter
+let dragging = false;
+
+function paintParticle(x, y) {
+	let ptc = grd[Math.floor(x / rx)][Math.floor(( height - y ) / ry )];
+	ptc.material = brush.value
+	switch(brush.value) {
+			case "air":
+				ptc.density = 0;
+				break;
+			case "water":
+				ptc.density = 1;
+				break;
+			case "sedimentary":
+				ptc.density = 2;
+				break;
+			case "magmatic":
+				ptc.density = 2.7;
+				break;
+			case "metamorphic":
+				ptc.density = 2.7;
+				break;
+			case "magma":
+				ptc.density = 3.3;
+				break;
+		}
+	drawCanvas();
+}
+
+canvas.onmousedown = function(e) {
+	if(paintBtn.checked) {
+		paintParticle(e.offsetX, e.offsetY);
+		dragging = true;
+	}
+}
+
+canvas.onmousemove = function(e) {
+	if(dragging) {
+		paintParticle(e.offsetX, e.offsetY);
+	}
+}
+
+window.onmouseup = function() { dragging = false; }
 
 init();
 
