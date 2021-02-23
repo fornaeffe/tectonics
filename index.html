@@ -197,11 +197,19 @@
 	</script>
     <script>
 // Parameters
+const n = 300;
+const nfb = 30;
+const nfs = 30;
 const nx = 30;
 const ny = 30;
-const d = 1;
 const size = 10;
-const buffer = 50;
+const buffer = 2;
+const g = 1; // Gravity
+const k = 1; // Repulsion coefficient
+const kb = 1; // Repulsion coefficient from borders
+const Fmax = 1; // Max force
+const Vmax = 0.03; // Max vel
+const damp = 0.5;
 
 // Links to page elements
 const canvas = document.getElementById("myCanvas");
@@ -211,47 +219,64 @@ const startBtn = document.getElementById("start");
 let width = canvas.width = window.innerWidth;
 let height = canvas.height = window.innerHeight;
 const ctx = canvas.getContext('2d');
+let rx = width / nx;
+let ry = height / ny;
 
 class Particle {
 	constructor(x, y) {
 		this.x = x;
 		this.y = y;
-	}
-	potential(x, y) {
-		let U = 0;
-
-		if(x < d) U += 10 - x;
-		if(x + d > nx) U += x + 10 - nx;
-		if(y < d) U += 10 - y;
-
-		U += 5 * y;
-
-		for(let i = 0; i < particles.length; i ++) {
-			if(!(particles[i] === this)) {
-				const dx = x - particles[i].x;
-				const dy = y - particles[i].y;
-				const d = Math.sqrt( dx * dx + dy * dy );
-				if( d == 0) {U += 10000000000000;} else {U += 1 / d;}
-			}
-		}
-		return(U);
+		this.velX = 0;
+		this.velY = 0;
 	}
 	update() {
-		let U = new Array(3);
+		let Fx = 0;
+		let Fy = -g;
 
-		for(let i = 0; i < 3; i ++) {
-			U[i] = this.potential(this.x - 1 + i, this.y);
-		}
-		this.x += U.indexOf(Math.min(...U)) - 1;
+		for(let j = 0; j < particles.length; j++) {
+			if(!(this === particles[j])) {
+				const dx = this.x - particles[j].x;
+				const dy = this.y - particles[j].y;
+				const distance = Math.sqrt(dx * dx + dy * dy);
+				const F = k / ( distance * distance ) ;
+				
+				Fx += F * ( dx / distance );
+				Fy += F * ( dy / distance );		
+				
+			}
 
-		for(let i = 0; i < 3; i ++) {
-			U[i] = this.potential(this.x, this.y - 1 + i);
 		}
-		this.y += U.indexOf(Math.min(...U)) - 1;
+
+		const Ftot = Math.sqrt(Fx * Fx + Fy * Fy)
+		if ( Ftot > Fmax ) {
+			Fx = Fx * Fmax / Ftot;
+			Fy = Fy * Fmax / Ftot;
+		}
+
+		this.velX += Fx;
+		this.velY += Fy;
+
+		const Vtot = Math.sqrt(this.velX * this.velX + this.velY * this.velY)
+		if ( Vtot > Vmax ) {
+			this.velX = this.velX * Vmax / Vtot;
+			this.velY = this.velY * Vmax / Vtot;
+		}
+
+		this.x += this.velX;
+		this.y += this.velY;
+
+		this.velX = this.velX * damp;
+		this.velY = this.velY * damp;
+		
+		if (this.x < 0 ) { this.x = - this.x; }
+		if (this.x > nx ) { this.x = nx - (this.x - nx); }
+		if (this.y < 0 ) { this.y = - this.y; }
 	}
 	draw() {
-		ctx.fillStyle = "gray";
-		ctx.fillRect( this.x / nx * ( width - 2 * buffer ) + buffer - size / 2, ( 1 - this.y / ny ) * ( height - 2 * buffer ) + buffer - size / 2, size, size )
+		ctx.beginPath();
+		ctx.fillStyle = "#ab5cf2";
+		ctx.arc(this.x * rx, height - this.y * ry, size, 0, 2 * Math.PI);
+		ctx.fill();
 	}
 }
 
@@ -267,14 +292,23 @@ drawCanvas = function() {
 let particles = [];
 
 function init() {
-	for(let i = 0; i < Math.floor( nx / d ); i ++) {
-		for(let j = 0; j < Math.floor( ny / d / 2 ); j ++) {
-			let particle = new Particle( Math.floor( ( i + 0.5 ) * d ), Math.floor( ( j + 0.5 ) * d ) );
-			particles.push(particle);
-		}
+
+	for (let i = 0; i < n; i++) {
+		let particle = new Particle(Math.random() * nx, Math.random() * ny, false);
+		particles.push(particle);
 	}
 	drawCanvas();
 }
+
+// Resizer
+function resizer() {		
+	width = canvas.width = window.innerWidth;
+	height = canvas.height = window.innerHeight;
+	rx = width / nx;
+	ry = height / ny;
+	drawCanvas();
+}
+window.addEventListener('resize', resizer);
 
 function loop() {
   if(startBtn.checked) {
