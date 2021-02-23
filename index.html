@@ -182,10 +182,17 @@
 							Disegna
 							<select id="brush">
 								<option value="air">Aria</option>
+								<option value="sedimentary">Sedimentarie</option>
+								<option value="magmatic">Magmatiche</option>
+								<option value="metamorphic">Metamorfiche</option>
 								<option value="magma">Magma</option>							
 							</select>
 						</li>
-						
+						<li>
+							Movimento placche:<br />
+							<input type="range" min="-10" max="10" value="0" step="1" class="slider" id="speed" oninput="speedoutput.value = value"/>
+							<output id="speedoutput">0</output>
+						</li>
 				  	</ul>
 				</li>
 			</ul>
@@ -209,12 +216,16 @@
 // Parameters
 const nx = 30;
 const ny = 30;
+const wl = 20;
+const bp = 55;
+const mm = 3.3; // Magma mass
 
 // Links to page elements
 const canvas = document.getElementById("myCanvas");
 const startBtn = document.getElementById("start");
 const paintBtn = document.getElementById("paint");
 const brush = document.getElementById("brush");
+const speedSlider = document.getElementById("speed");
 
 // Set up canvas and context
 let width = canvas.width = window.innerWidth;
@@ -243,7 +254,7 @@ class Particle {
 				this.density = 2.7;
 				break;
 			case "magma":
-				this.density = 3.3;
+				this.density = mm;
 				break;
 		}
 	}
@@ -274,6 +285,9 @@ class Particle {
 let grd = new Array(nx);
 for(let i = 0; i < nx; i ++) grd[i] = new Array(ny);
 
+let LeftBorderP = new Array(ny);
+let RightBorderP = new Array(ny);
+
 drawCanvas = function() {
 	ctx.fillStyle = "black";
 	ctx.fillRect( 0, 0, width, height );
@@ -289,12 +303,40 @@ drawCanvas = function() {
 function init() {
 	for(let i = 0; i < nx; i ++) {
 		for(let j = 0; j < ny; j ++) {
-			grd[i][j] = new Particle( 
-				j < ny / 2 ? "magma" : "air"
-			);
+			let mat = "magma";
+			if (j > ny / 4 ) { mat = "magmatic" };
+			if (j > ny / 2 ) { mat = "sedimentary" };
+			if (j > wl - 3 ) { mat = "air" };
+			grd[i][j] = new Particle( mat );
 		}
 	}
+
+	//Fill with water
+	for(let i = 0; i < nx; i ++) {
+		for(let j = 0; j < wl; j ++) {
+			if(	grd[i][j].material == "air" ) {	grd[i][j] = new Particle("water"); }
+		}
+		for(let j = wl; j < ny; j ++) {
+			if(	grd[i][j].material == "water" ) {	grd[i][j] = new Particle("air"); }
+		}
+	}
+
+	LeftBorderP[ny-1] = 0;
+	for(let j = ny - 2; j > -1; j --) {
+		LeftBorderP[j] = LeftBorderP[j+1] + grd[0][j+1].density;
+	}
+
+	RightBorderP[ny-1] = 0;
+	for(let j = ny - 2; j > -1; j --) {
+		RightBorderP[j] = RightBorderP[j+1] + grd[nx - 1][j+1].density;
+	}
+	
 	drawCanvas();
+}
+
+let P = new Array(nx);
+for(let i = 0; i < nx; i ++) {
+	P[i] = new Array(ny);
 }
 
 function loop() {
@@ -316,6 +358,91 @@ function loop() {
 				}
 			}
 		}
+
+		//Fill with water
+		for(let i = 0; i < nx; i ++) {
+			for(let j = 0; j < wl; j ++) {
+				if(	grd[i][j].material == "air" ) {	grd[i][j] = new Particle("water"); }
+			}
+			for(let j = wl; j < ny; j ++) {
+				if(	grd[i][j].material == "water" ) {	grd[i][j] = new Particle("air"); }
+			}
+		}
+
+		// Calculate columns masses
+		let cm = [];
+		for(let i = 0; i < nx; i ++) {
+			cm[i] = 0
+			for(let j = 0; j < ny; j ++) {
+				cm[i] += grd[i][j].density;
+			}
+		}
+
+		// Calculate pressures
+		for(let i = 0; i < nx; i ++) {
+			P[i][ny-1] = 0;
+			for(let j = ny - 2; j > -1; j --) {
+				P[i][j] = P[i][j+1] + grd[i][j+1].density;
+			}
+		}
+
+		// Raise columns with low pressures
+		for(let i = 0; i < nx; i ++) {
+			let tempBp = bp;
+			if (i > nx * 3 / 7 && i < nx * 4 / 7) { tempBp += - speedSlider.value };
+			if( cm[i] + mm < tempBp ) {
+				for(let j = ny - 1; j > 0; j --) {
+					grd[i][j] = grd[i][j - 1];
+				}
+				grd[i][0] = new Particle("magma");
+			}
+		}
+
+		for(let i = 0; i < nx; i ++) {
+			let tempBp = bp;
+			if (i > nx * 3 / 7 && i < nx * 4 / 7) { tempBp += - speedSlider.value };
+			if( P[i][0] > tempBp ) {
+				slidechain(i, 0);
+			}
+		}
+
+		function slidechain(x, y) {
+			const leftP = x == 0 ? LeftBorderP[y] + speedSlider.value : P[x - 1][y];
+			const rightP = x == nx - 1 ? RightBorderP[y] + speedSlider.value : P[x + 1][y];
+			const thisP = P[x][y];
+
+			// if (confirm("Slidechain on " + x + " " + y 
+			// + "with left: "+ leftP 
+			// + " right: " + rightP 
+			// + " this: " + thisP)) {
+
+				if (leftP > rightP && leftP > thisP) {
+					
+					if (x == 0) { 
+						Object.assign(grd[x][y], grd[x + 1][y]);
+					} else {
+						grd[x][y] = grd[x - 1][y];
+						slidechain(x - 1, y);
+					}
+				} else if ( rightP > leftP && rightP > thisP ) {
+					if (x == nx - 1) { 
+						Object.assign(grd[x][y], grd[x - 1][y]);
+					} else {
+						grd[x][y] = grd[x + 1][y];
+						slidechain(x + 1, y);
+					}
+				} else {
+					if (thisP == 0) { 
+						grd[x][y] = new Particle("air");
+					} else {
+						grd[x][y] = grd[x][y + 1];
+						slidechain(x, y + 1);
+					}
+				}
+			// }
+		}
+
+
 
 		drawCanvas();
 	}
