@@ -352,33 +352,44 @@ function raiseColumn(x, y) {
 }
 
 function slidechain(x, y) {
-	const leftP = x == 0 ? LeftBorderP[y] + speedSlider.value : P[x - 1][y];
-	const rightP = x == nx - 1 ? RightBorderP[y] + speedSlider.value : P[x + 1][y];
-	const thisP = P[x][y];
+	let i = 0;
 
-	if (leftP > rightP && leftP > thisP) {
-		
-		if (x == 0) { 
-			Object.assign(grd[x][y], grd[x + 1][y]);
+	for (i = 0; i < nx * ny + 1; i++) {
+		const leftP = x == 0 ? LeftBorderP[y] + speedSlider.value : P[x - 1][y];
+		const rightP = x == nx - 1 ? RightBorderP[y] + speedSlider.value : P[x + 1][y];
+		const thisP = P[x][y];
+
+		if (leftP > rightP && leftP > thisP) {
+			
+			if (x == 0) { 
+				Object.assign(grd[x][y], grd[x + 1][y]);
+				break;
+			} else {
+				grd[x][y] = grd[x - 1][y];
+				x = x - 1;
+			}
+		} else if ( rightP > leftP && rightP > thisP ) {
+			if (x == nx - 1) { 
+				Object.assign(grd[x][y], grd[x - 1][y]);
+				break;
+			} else {
+				grd[x][y] = grd[x + 1][y];
+				x = x + 1;
+			}
 		} else {
-			grd[x][y] = grd[x - 1][y];
-			slidechain(x - 1, y);
-		}
-	} else if ( rightP > leftP && rightP > thisP ) {
-		if (x == nx - 1) { 
-			Object.assign(grd[x][y], grd[x - 1][y]);
-		} else {
-			grd[x][y] = grd[x + 1][y];
-			slidechain(x + 1, y);
-		}
-	} else {
-		if (thisP == 0) { 
-			grd[x][y] = new Particle("air");
-		} else {
-			grd[x][y] = grd[x][y + 1];
-			slidechain(x, y + 1);
+			if (thisP == 0) { 
+				grd[x][y] = new Particle("air");
+				break;
+			} else {
+				grd[x][y] = grd[x][y + 1];
+				y = y + 1;
+			}
 		}
 	}
+
+	if (i == nx * ny + 1) { throw 'Too many iterations in slidechain, endend on ' + x + ' ' + y; }
+
+	
 }
 
 function loop() {
@@ -426,7 +437,7 @@ function loop() {
 		dP[0] = [];
 		// Left border
 		for(let j = 0; j < ny; j++) {
-			dP[0][j] = LeftBorderP[j] - P[0][j];
+			dP[0][j] = LeftBorderP[j] - P[0][j] + speedSlider.value;
 		}
 		// Internal
 		for(let i = 1; i < nx; i ++) {
@@ -438,13 +449,13 @@ function loop() {
 		// Right border
 		dP[nx] = [];
 		for(let j = 0; j < ny; j++) {
-			dP[nx][j] = P[nx - 1][j] - RightBorderP[j];
+			dP[nx][j] = P[nx - 1][j] - RightBorderP[j] - speedSlider.value;
 		}
 
 		// Bottom
 		let BottomdP = [];
 		for(let i = 0; i < nx; i ++) {
-			BottomdP[i] = bp - BottomP[i] - ( i > nx * 3 / 7 && i < nx * 4 / 7 ? - speedSlider.value : 0 );
+			BottomdP[i] = bp - BottomP[i] - ( i > nx * 3 / 7 && i < nx * 4 / 7 ? speedSlider.value : 0 );
 		}
 
 		// Find maximum pressure difference
@@ -492,18 +503,18 @@ function loop() {
 				}
 			} else {
 				if (maxdPv > 0) {
-					if (maxHdPi[1] < nx) {
-						raiseColumn(maxHdPi[1], maxHdPi[2]);
-						slidechain(maxHdPi[1], maxHdPi[2]);
+					if (maxHdPi[0] < nx) {
+						raiseColumn(maxHdPi[0], maxHdPi[1]);
+						slidechain(maxHdPi[0], maxHdPi[1]);
 					} else {
-						slidechain(maxHdPi[1] - 1, maxHdPi[2]);
+						slidechain(maxHdPi[0] - 1, maxHdPi[1]);
 					}
 				} else {
-					if (maxHdPi[1] > 0) {
-						raiseColumn(maxHdPi[1] - 1, maxHdPi[2]);
-						slidechain(maxHdPi[1] - 1, maxHdPi[2]);
+					if (maxHdPi[0] > 0) {
+						raiseColumn(maxHdPi[0] - 1, maxHdPi[1]);
+						slidechain(maxHdPi[0] - 1, maxHdPi[1]);
 					} else {
-						slidechain(maxHdPi[1], maxHdPi[2]);
+						slidechain(maxHdPi[0], maxHdPi[1]);
 					}
 				}
 			}
