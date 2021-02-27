@@ -225,17 +225,22 @@ let matStack = []
 for (let j = 0; j < 10; j++) {
 	matStack[j] = "magma";
 }
-for (let j = 10; j < 12; j++) {
+for (let j = 10; j < 16; j++) {
 	matStack[j] = "magmatic";
 }
-for (let j = 12; j < 14; j++) {
+for (let j = 16; j < 18; j++) {
 	matStack[j] = "sedimentary";
 }
-for (let j = 14; j < wl; j++) {
+for (let j = 18; j < wl; j++) {
 	matStack[j] = "water";
 }
 for (let j = wl; j < ny; j++) {
 	matStack[j] = "air";
+}
+
+let TStack = []
+for (let j = 0; j < ny; j++) {
+	TStack[j] = 1.1 - j / wl * 0.1;
 }
 
 // Links to page elements
@@ -254,28 +259,32 @@ let rx = width / nx;
 let ry = height / ny;
 
 class Particle {
-	constructor(material) {
+	constructor(material, T) {
 		this.material = material;
+		this.T = ( material == "air" || material == "water" ) ? 1 : T;
 		switch(material) {
 			case "air":
-				this.density = 0;
+				this.intdensity = 0;
 				break;
 			case "water":
-				this.density = 1;
+				this.intdensity = 1;
 				break;
 			case "sedimentary":
-				this.density = 2;
+				this.intdensity = 2;
 				break;
 			case "magmatic":
-				this.density = 2.7;
+				this.intdensity = 2.7;
 				break;
 			case "metamorphic":
-				this.density = 2.7;
+				this.intdensity = 2.7;
 				break;
 			case "magma":
-				this.density = mm;
+				this.intdensity = mm;
 				break;
 		}
+	}
+	get density() {
+		return( this.intdensity / this.T);
 	}
 	get color() {
 		switch(this.material) {
@@ -313,6 +322,7 @@ let P = new Array(nx);
 for(let i = 0; i < nx; i ++) {
 	P[i] = new Array(ny);
 }
+let bp = [];
 
 drawCanvas = function() {
 	ctx.fillStyle = "black";
@@ -329,7 +339,7 @@ drawCanvas = function() {
 function init() {
 	for(let i = 0; i < nx; i ++) {
 		for(let j = 0; j < ny; j ++) {
-			grd[i][j] = new Particle( matStack[j] );
+			grd[i][j] = new Particle( matStack[j], TStack[j] );
 		}
 	}
 
@@ -343,7 +353,6 @@ function init() {
 		RightBorderP[j] = RightBorderP[j+1] + grd[nx - 1][j+1].density;
 	}
 
-	let bp = [];
 	for (let i = 0; i < nx; i++) {
 		bp[i] = LeftBorderP[0] + grd[0][0].density;
 	}
@@ -369,8 +378,7 @@ function slidechain(x, y) {
 		if (leftP > rightP && leftP > thisP) {
 			
 			if (x == 0) { 
-				grd[x][y] = new Particle(matStack[y]);
-				LeftBorderP[y] += - grd[x][y].density; 
+				grd[x][y] = new Particle(matStack[y], TStack[y]); 
 				break;
 			} else {
 				grd[x][y] = grd[x - 1][y];
@@ -378,8 +386,7 @@ function slidechain(x, y) {
 			}
 		} else if ( rightP > leftP && rightP > thisP ) {
 			if (x == nx - 1) { 
-				grd[x][y] = new Particle(matStack[y]);
-				RightBorderP[y] += - grd[x][y].density; 
+				grd[x][y] = new Particle(matStack[y], TStack[y]); 
 				break;
 			} else {
 				grd[x][y] = grd[x + 1][y];
@@ -387,7 +394,7 @@ function slidechain(x, y) {
 			}
 		} else {
 			if (thisP == 0) { 
-				grd[x][y] = new Particle("air");
+				grd[x][y] = new Particle("air", TStack[y]);
 				break;
 			} else {
 				grd[x][y] = grd[x][y + 1];
@@ -416,7 +423,7 @@ function loop() {
 				) {
 					let mat = grd[i][j-1].material;
 					grd[i][j-1] = grd[i][j];
-					grd[i][j] = new Particle(mat);
+					grd[i][j] = new Particle(mat, 1);
 				}
 			}
 		}
@@ -424,20 +431,11 @@ function loop() {
 		//Fill with water
 		for(let i = 0; i < nx; i ++) {
 			for(let j = 0; j < wl; j ++) {
-				if(	grd[i][j].material == "air" ) {	grd[i][j] = new Particle("water"); }
+				if(	grd[i][j].material == "air" ) {	grd[i][j] = new Particle("water", 1); }
 			}
 			for(let j = wl; j < ny; j ++) {
-				if(	grd[i][j].material == "water" ) {	grd[i][j] = new Particle("air"); }
+				if(	grd[i][j].material == "water" ) {	grd[i][j] = new Particle("air", 1); }
 			}
-		}
-
-		// Update border pressures
-		for(let j = 0; j < wl; j ++) {
-			LeftBorderP[j] += speedSlider.value / wl;
-			RightBorderP[j] += speedSlider.value / wl;
-		}
-		for(let i = ( nx - sinkWidth ) / 2; i < ( nx + sinkWidth ) / 2; i ++) {
-			bp[i] += - speedSlider.value / sinkWidth;
 		}
 
 		// Calculate pressures
@@ -515,10 +513,8 @@ function loop() {
 			if (maxdPi) {
 				if (maxdPv > 0) {
 					raiseColumn(maxBdPi, 0);
-					grd[maxBdPi][0] = new Particle("magma");
-					bp[maxBdPi] += - mm;
+					grd[maxBdPi][0] = new Particle("magma", TStack[0]);
 				} else {
-					bp[maxBdPi] += grd[maxBdPi][0].density;
 					slidechain(maxBdPi, 0);					
 				}
 			} else {
@@ -564,7 +560,7 @@ window.addEventListener('resize', resizer);
 let dragging = false;
 
 function paintParticle(x, y) {
-	grd[Math.floor(x / rx)][Math.floor(( height - y ) / ry )] = new Particle(brush.value);
+	grd[Math.floor(x / rx)][Math.floor(( height - y ) / ry )] = new Particle(brush.value, TStack[Math.floor(( height - y ) / ry )]);
 	drawCanvas();
 }
 
