@@ -189,9 +189,21 @@
 							</select>
 						</li>
 						<li>
-							Movimento placche:<br />
-							<input type="range" min="-10" max="10" value="0" step="1" class="slider" id="speed" oninput="speedoutput.value = value"/>
-							<output id="speedoutput">0</output>
+							Velocità:<br />
+							<input type="range" min="0" max="10" value="1" step="1" class="slider" id="speed" oninput="speedoutput.value = value"/>
+							<output id="speedoutput">1</output>
+						</li>
+						<li>
+							Mostra:
+							<select id="view">
+								<option value="rock type">Tipo di roccia</option>
+								<option value="temperature">Temperatura</option>						
+							</select>
+						</li>
+						<li>
+							Variazione flusso termico:<br />
+							<input type="range" min="-5" max="5" value="0" step="1" class="slider" id="thermal" oninput="thermaloutput.value = value"/>
+							<output id="thermaloutput">0</output>
 						</li>
 				  	</ul>
 				</li>
@@ -220,6 +232,7 @@ const wl = 20;
 const sinkWidth = 10;
 const mm = 3.3; // Magma mass
 const dPlimit = 1; // Minimum pressure difference to start a slidechain
+const cdT = .01;
 
 let matStack = []
 for (let j = 0; j < 10; j++) {
@@ -249,7 +262,8 @@ const startBtn = document.getElementById("start");
 const paintBtn = document.getElementById("paint");
 const brush = document.getElementById("brush");
 const speedSlider = document.getElementById("speed");
-
+const view = document.getElementById("view");
+const thermalSlider = document.getElementById("thermal");
 
 // Set up canvas and context
 let width = canvas.width = window.innerWidth;
@@ -287,26 +301,34 @@ class Particle {
 		return( this.intdensity / this.T);
 	}
 	get color() {
-		switch(this.material) {
-			case "air":
-				return("rgb(200, 200, 255)");
+		switch(view.value) {
+			case "rock type":
+				switch(this.material) {
+					case "air":
+						return("rgb(200, 200, 255)");
+						break;
+					case "water":
+						return("rgb(0, 0, 255)");
+						break;
+					case "sedimentary":
+						return("rgb(255, 200, 0)");
+						break;
+					case "magmatic":
+						return("rgb(200, 100, 0)");
+						break;
+					case "metamorphic":
+						return("rgb(200, 0, 100)");
+						break;
+					case "magma":
+						return("rgb(200, 0, 0)");
+						break;
+				}
 				break;
-			case "water":
-				return("rgb(0, 0, 255)");
-				break;
-			case "sedimentary":
-				return("rgb(255, 200, 0)");
-				break;
-			case "magmatic":
-				return("rgb(200, 100, 0)");
-				break;
-			case "metamorphic":
-				return("rgb(200, 0, 100)");
-				break;
-			case "magma":
-				return("rgb(200, 0, 0)");
+			case "temperature":
+				return("rgb(" + ( ( this.T - 1 ) * 1500 + 100 ) + ", 0, 0)");
 				break;
 		}
+		
 	}
 }
 
@@ -435,6 +457,40 @@ function loop() {
 			}
 			for(let j = wl; j < ny; j ++) {
 				if(	grd[i][j].material == "water" ) {	grd[i][j] = new Particle("air", 1); }
+			}
+		}
+
+		// Heat exchange
+		let dT = [];
+		for ( let i = 0; i < nx; i++ ) {
+			dT[i] = [];
+			for ( let j = 0; j < ny; j ++ ) {
+				dT[i][j] = 0;
+			}
+		}
+		for ( let i = 0; i < nx; i++ ) {
+
+			// Heat flux from interior
+			dT[i][0] += 0.1 / wl;
+			if ( i > nx * 3 / 7 && i < nx * 4 / 7 ) { dT[i][0] += 0.1 * thermalSlider.value; }
+
+			// Heat exchange between particles
+			for ( let j = 0; j < ny; j ++ ) {
+				if ( i < nx - 1 ) { 
+					dT[i][j] += grd[i + 1][j].T - grd[i][j].T;
+					dT[i + 1][j] -= grd[i + 1][j].T - grd[i][j].T;
+				 }
+				 if ( j < ny - 1 ) { 
+					dT[i][j] += grd[i][j + 1].T - grd[i][j].T;
+					dT[i][j + 1] -= grd[i][j + 1].T - grd[i][j].T;
+				 }
+			}
+		}
+		for ( let i = 0; i < nx; i++ ) {
+			for ( let j = 0; j < ny; j ++ ) {
+				if ( grd[i][j].material != "air" && grd[i][j].material != "water" ) {
+					grd[i][j].T += dT[i][j] * cdT * speedSlider.value;
+				}
 			}
 		}
 
@@ -575,6 +631,10 @@ canvas.onmousemove = function(e) {
 	if(dragging) {
 		paintParticle(e.offsetX, e.offsetY);
 	}
+}
+
+view.onchange = function() {
+	drawCanvas();
 }
 
 window.onmouseup = function() { dragging = false; }
