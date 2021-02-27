@@ -217,9 +217,26 @@
 const nx = 30;
 const ny = 30;
 const wl = 20;
-let bp = 55;
+const sinkWidth = 10;
 const mm = 3.3; // Magma mass
 const dPlimit = 1; // Minimum pressure difference to start a slidechain
+
+let matStack = []
+for (let j = 0; j < 10; j++) {
+	matStack[j] = "magma";
+}
+for (let j = 10; j < 12; j++) {
+	matStack[j] = "magmatic";
+}
+for (let j = 12; j < 14; j++) {
+	matStack[j] = "sedimentary";
+}
+for (let j = 14; j < wl; j++) {
+	matStack[j] = "water";
+}
+for (let j = wl; j < ny; j++) {
+	matStack[j] = "air";
+}
 
 // Links to page elements
 const canvas = document.getElementById("myCanvas");
@@ -227,6 +244,7 @@ const startBtn = document.getElementById("start");
 const paintBtn = document.getElementById("paint");
 const brush = document.getElementById("brush");
 const speedSlider = document.getElementById("speed");
+
 
 // Set up canvas and context
 let width = canvas.width = window.innerWidth;
@@ -311,21 +329,7 @@ drawCanvas = function() {
 function init() {
 	for(let i = 0; i < nx; i ++) {
 		for(let j = 0; j < ny; j ++) {
-			let mat = "magma";
-			if (j > ny / 4 ) { mat = "magmatic" };
-			if (j > ny / 2 ) { mat = "sedimentary" };
-			if (j > wl - 3 ) { mat = "air" };
-			grd[i][j] = new Particle( mat );
-		}
-	}
-
-	//Fill with water
-	for(let i = 0; i < nx; i ++) {
-		for(let j = 0; j < wl; j ++) {
-			if(	grd[i][j].material == "air" ) {	grd[i][j] = new Particle("water"); }
-		}
-		for(let j = wl; j < ny; j ++) {
-			if(	grd[i][j].material == "water" ) {	grd[i][j] = new Particle("air"); }
+			grd[i][j] = new Particle( matStack[j] );
 		}
 	}
 
@@ -339,7 +343,10 @@ function init() {
 		RightBorderP[j] = RightBorderP[j+1] + grd[nx - 1][j+1].density;
 	}
 
-	bp = LeftBorderP[0] + grd[0][0].density
+	let bp = [];
+	for (let i = 0; i < nx; i++) {
+		bp[i] = LeftBorderP[0] + grd[0][0].density;
+	}
 	
 	
 	drawCanvas();
@@ -362,7 +369,8 @@ function slidechain(x, y) {
 		if (leftP > rightP && leftP > thisP) {
 			
 			if (x == 0) { 
-				Object.assign(grd[x][y], grd[x + 1][y]);
+				grd[x][y] = new Particle(matStack[y]);
+				LeftBorderP[y] += - grd[x][y].density; 
 				break;
 			} else {
 				grd[x][y] = grd[x - 1][y];
@@ -370,7 +378,8 @@ function slidechain(x, y) {
 			}
 		} else if ( rightP > leftP && rightP > thisP ) {
 			if (x == nx - 1) { 
-				Object.assign(grd[x][y], grd[x - 1][y]);
+				grd[x][y] = new Particle(matStack[y]);
+				RightBorderP[y] += - grd[x][y].density; 
 				break;
 			} else {
 				grd[x][y] = grd[x + 1][y];
@@ -422,6 +431,15 @@ function loop() {
 			}
 		}
 
+		// Update border pressures
+		for(let j = 0; j < wl; j ++) {
+			LeftBorderP[j] += speedSlider.value / wl;
+			RightBorderP[j] += speedSlider.value / wl;
+		}
+		for(let i = ( nx - sinkWidth ) / 2; i < ( nx + sinkWidth ) / 2; i ++) {
+			bp[i] += - speedSlider.value / sinkWidth;
+		}
+
 		// Calculate pressures
 		for(let i = 0; i < nx; i ++) {
 			P[i][ny-1] = 0;
@@ -437,7 +455,7 @@ function loop() {
 		dP[0] = [];
 		// Left border
 		for(let j = 0; j < ny; j++) {
-			dP[0][j] = LeftBorderP[j] - P[0][j] + speedSlider.value;
+			dP[0][j] = LeftBorderP[j] - P[0][j];
 		}
 		// Internal
 		for(let i = 1; i < nx; i ++) {
@@ -449,13 +467,13 @@ function loop() {
 		// Right border
 		dP[nx] = [];
 		for(let j = 0; j < ny; j++) {
-			dP[nx][j] = P[nx - 1][j] - RightBorderP[j] - speedSlider.value;
+			dP[nx][j] = P[nx - 1][j] - RightBorderP[j];
 		}
 
 		// Bottom
 		let BottomdP = [];
 		for(let i = 0; i < nx; i ++) {
-			BottomdP[i] = bp - BottomP[i] - ( i > nx * 3 / 7 && i < nx * 4 / 7 ? speedSlider.value : 0 );
+			BottomdP[i] = bp[i] - BottomP[i];
 		}
 
 		// Find maximum pressure difference
@@ -498,8 +516,10 @@ function loop() {
 				if (maxdPv > 0) {
 					raiseColumn(maxBdPi, 0);
 					grd[maxBdPi][0] = new Particle("magma");
+					bp[maxBdPi] += - mm;
 				} else {
-					slidechain(maxBdPi, 0);
+					bp[maxBdPi] += grd[maxBdPi][0].density;
+					slidechain(maxBdPi, 0);					
 				}
 			} else {
 				if (maxdPv > 0) {
